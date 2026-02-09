@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-8">
+        <h2 class="text-3xl font-bold text-white tracking-tight">System Overview</h2>
+        <p class="text-gray-400">Explainable AI monitoring for network intrusions by <span class="text-blue-500 font-bold">SafeSpect</span>.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-sm">
+            <p class="text-gray-400 text-sm font-medium uppercase tracking-wider">Total Scanned</p>
+            <h3 class="text-3xl font-bold text-white">1,284,092</h3>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl border-l-4 border-l-red-500 shadow-sm">
+            <p class="text-gray-400 text-sm font-medium uppercase tracking-wider">Threats Detected</p>
+            <h3 class="text-3xl font-bold text-red-500">12</h3>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl border-l-4 border-l-green-500 shadow-sm">
+            <p class="text-gray-400 text-sm font-medium uppercase tracking-wider">Model Accuracy</p>
+            <h3 class="text-3xl font-bold text-green-400">99.2%</h3>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="lg:col-span-1 bg-gray-900 p-6 rounded-2xl border border-gray-800 shadow-xl">
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+                <i data-lucide="terminal" class="text-blue-500 w-5 h-5"></i> Manual Analysis
+            </h2>
+            <form id="analysisForm" class="space-y-5">
+                <div>
+                    <label class="text-xs text-gray-500 uppercase font-black mb-1 block">Duration</label>
+                    <input type="number" id="duration" class="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-white transition-all" value="0">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 uppercase font-black mb-1 block">Source Bytes</label>
+                    <input type="number" id="src_bytes" class="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-white transition-all" value="150">
+                </div>
+                
+                <button type="button" onclick="analyzeData()" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20">
+                    <i data-lucide="zap" class="w-5 h-5"></i> Run SafeSpect AI
+                </button>
+            </form>
+        </div>
+
+        <div class="lg:col-span-2 bg-gray-900 p-6 rounded-2xl border border-gray-800 shadow-xl min-h-[500px] relative flex flex-col">
+            
+            <div id="resultsPlaceholder" class="flex-1 flex flex-col items-center justify-center text-gray-600 text-center">
+                <div class="bg-gray-800/50 p-6 rounded-full mb-4">
+                    <i data-lucide="shield-alert" class="w-12 h-12 opacity-30"></i>
+                </div>
+                <p class="max-w-xs">Awaiting network traffic data. Input values and click 'Run SafeSpect AI' to generate explanations.</p>
+            </div>
+
+            <div id="analysisContent" class="hidden flex-1 animate-in fade-in duration-500">
+                <div class="flex justify-between items-start mb-8">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase font-black tracking-widest">Model Prediction</p>
+                        <h3 class="text-4xl font-black mt-1" id="resultLabel">--</h3>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500 uppercase font-black tracking-widest">Confidence</p>
+                        <span class="text-2xl font-mono text-blue-400 block mt-1" id="confidenceScore">0%</span>
+                    </div>
+                </div>
+                
+                <div class="border-t border-gray-800 pt-6">
+                    <h4 class="text-sm text-gray-400 uppercase mb-6 tracking-widest font-bold flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4 text-blue-500"></i> Explainable AI (Feature Impact Score)
+                    </h4>
+                    <div class="h-[300px] w-full">
+                        <canvas id="xaiChart"></canvas>
+                    </div>
+                    <div class="mt-6 p-4 bg-gray-800/30 rounded-xl border border-gray-800">
+                        <p class="text-xs text-gray-400 italic leading-relaxed">
+                            <span class="text-blue-400 font-bold">Interpretation:</span> Bars to the <span class="text-blue-400 font-bold">right</span> indicate features that increased the intrusion risk. Bars to the <span class="text-red-400 font-bold">left</span> indicate features that supported a "Normal" classification.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let myChart = null;
+
+    async function analyzeData() {
+        // Toggle UI Visibility
+        document.getElementById('resultsPlaceholder').classList.add('hidden');
+        document.getElementById('analysisContent').classList.remove('hidden');
+
+        // Capture data from form
+        const inputData = {
+            duration: document.getElementById('duration').value,
+            src_bytes: document.getElementById('src_bytes').value
+        };
+
+        try {
+            // POST request to Flask
+            const response = await fetch('/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(inputData)
+            });
+            
+            if (!response.ok) throw new Error("Server error");
+            const data = await response.json();
+            
+            // 1. Update Labels
+            const label = document.getElementById('resultLabel');
+            label.innerText = data.result;
+            label.className = data.result === 'Malicious' ? 'text-red-500 text-4xl font-black mt-1' : 'text-green-500 text-4xl font-black mt-1';
+            
+            document.getElementById('confidenceScore').innerText = data.confidence;
+
+            // 2. Clear old chart
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            // 3. Render New SHAP Chart
+            const ctx = document.getElementById('xaiChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.explanation.features,
+                    datasets: [{
+                        label: 'Feature Impact',
+                        data: data.explanation.impact,
+                        // Blue for positive impact (towards Malicious), Red for negative (towards Normal)
+                        backgroundColor: data.explanation.impact.map(v => v > 0 ? 'rgba(59, 130, 246, 0.8)' : 'rgba(239, 68, 68, 0.8)'),
+                        borderColor: data.explanation.impact.map(v => v > 0 ? '#3b82f6' : '#ef4444'),
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', 
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleColor: '#94a3b8',
+                            bodyColor: '#f1f5f9',
+                            borderColor: '#334155',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            grid: { color: '#1e293b', drawBorder: false }, 
+                            ticks: { color: '#94a3b8', font: { family: 'monospace' } } 
+                        },
+                        y: { 
+                            grid: { display: false }, 
+                            ticks: { color: '#f1f5f9', font: { weight: 'bold' } } 
+                        }
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error("Analysis failed:", error);
+            alert("Error connecting to SafeSpect AI. Ensure your Flask server is running and the model is loaded.");
+        }
+    }
+</script>
+{% endblock %}
