@@ -128,7 +128,7 @@ def analyze():
             final_idx = 0
 
         result['result'] = attack_labels.get(final_idx, "BENIGN")
-        result['confidence'] = f"{round(float(probs[final_idx]) * 100, 2)}%"
+        # result['confidence'] = f"{round(float(probs[final_idx]) * 100, 2)}%"
 
         return jsonify(result)
 

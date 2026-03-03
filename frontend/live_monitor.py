@@ -29,6 +29,21 @@ class LiveNetworkMonitor:
             'last_time':     None,
             'last_analyzed': 0,
         })
+        # HTTP-layer tracking per source IP
+        self._http_tracker = defaultdict(lambda: {
+            'request_count': 0,
+            'suspicious_paths': 0,
+            'start_time': None,
+            'last_analyzed': 0,
+        })
+        # Known suspicious path patterns (Nikto, SQLmap, web scanners)
+        self._suspicious_patterns = [
+            '/admin', '/phpmyadmin', '/etc/passwd', '/.env', '/wp-admin',
+            '/config', '/backup', '/shell', '/cmd', '/exec', 'select+',
+            'union+', '../', '<script', 'passwd', 'shadow', '/cgi-bin',
+            '/manager', '/.git', '/api/v1', '/console', 'sqlmap',
+            '/login.php', '/wp-login', '/xmlrpc', '/eval(', '/base64'
+        ]
 
     def start(self):
         if self.running:
@@ -37,6 +52,8 @@ class LiveNetworkMonitor:
         self.running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
+        self._http_thread = threading.Thread(target=self._http_monitor_loop, daemon=True)
+        self._http_thread.start()
         print("✅ Live monitor started")
 
     def stop(self):
@@ -116,6 +133,9 @@ class LiveNetworkMonitor:
     # ── Per-source analysis ──────────────────────────────────────────────────
 
     def _analyze_source(self, src_ip):
+        # Skip Windows host IP — it's our own machine responding to traffic, not an attacker
+        if src_ip == '172.20.48.1':
+            return
         with self._lock:
             if src_ip not in self._src_tracker:
                 return
@@ -144,12 +164,18 @@ class LiveNetworkMonitor:
             "Fwd Packets/s":          pps,
         }
 
-        # DDoS = high SYN count AND ports are concentrated (few unique ports)
-        # PortScan = many unique ports AND SYN count is low relative to ports
-        # Priority: DDoS wins if SYN storm detected, regardless of port count
-        is_flood = s['syn_count'] >= 20 and (unique_ports < 20 or s['syn_count'] > unique_ports * 2)
-        is_scan  = unique_ports >= 10 and not is_flood and s['syn_count'] < unique_ports
-        print(f"🔍 [{src_ip}] pkts={s['total_packets']} syn={s['syn_count']} ports={unique_ports} pps={pps:.1f} | flood={is_flood} scan={is_scan}")
+        # DDoS = high SYN storm on few ports
+        # PortScan = many unique ports, low SYN relative to ports
+        # BruteForce = high packet count to 1-2 ports (e.g. port 5000/22), low SYN, many packets
+        is_flood     = s['syn_count'] >= 20 and (unique_ports < 20 or s['syn_count'] > unique_ports * 2)
+        is_scan      = unique_ports >= 3 and not is_flood and s['syn_count'] <= unique_ports
+        is_bruteforce = (
+            s['total_packets'] >= 20 and        # high volume
+            unique_ports <= 2 and               # targeting same port repeatedly
+            not is_flood and
+            most_common_port in [22, 21, 80, 443, 5000, 3306, 8080]  # common BF targets
+        )
+        print(f"🔍 [{src_ip}] pkts={s['total_packets']} syn={s['syn_count']} ports={unique_ports} pps={pps:.1f} | flood={is_flood} scan={is_scan} bf={is_bruteforce}")
 
         try:
             result     = self.ai_model.predict_and_explain(features)
@@ -159,6 +185,9 @@ class LiveNetworkMonitor:
             if is_flood:
                 label      = 'DDoS'
                 confidence = f"{min(99, 70 + min(29, int(pps / 1000)))}%"
+            elif is_bruteforce:
+                label      = 'BruteForce'
+                confidence = f"{min(99, 60 + min(39, s['total_packets'] // 10))}%"
             elif is_scan:
                 label      = 'PortScan'
                 confidence = f"{min(99, 60 + unique_ports)}%"
@@ -181,6 +210,65 @@ class LiveNetworkMonitor:
 
         except Exception as e:
             print(f"⚠️  Prediction error for {src_ip}: {e}")
+
+    # ── HTTP layer monitor ──────────────────────────────────────────────────
+
+    def _http_monitor_loop(self):
+        """Monitor Flask's own request log via a queue populated by a middleware hook."""
+        while self.running:
+            try:
+                requests_snapshot = {}
+                with self._lock:
+                    for ip, data in list(self._http_tracker.items()):
+                        if data['request_count'] >= 5 and (time.time() - data['last_analyzed']) > 2.0:
+                            requests_snapshot[ip] = dict(data)
+                            self._http_tracker[ip]['last_analyzed'] = time.time()
+
+                for src_ip, data in requests_snapshot.items():
+                    elapsed   = max(1, time.time() - data['start_time']) if data['start_time'] else 1
+                    req_rate  = data['request_count'] / elapsed
+                    sus_ratio = data['suspicious_paths'] / max(1, data['request_count'])
+
+                    # WebAttack: many suspicious paths
+                    # BruteForce: many requests to same path (login) at high rate
+                    if sus_ratio > 0.3 or data['suspicious_paths'] >= 3:
+                        label      = 'WebAttack'
+                        confidence = f"{min(99, 60 + int(sus_ratio * 39))}%"
+                    elif req_rate > 10 and data['request_count'] > 20:
+                        label      = 'BruteForce'
+                        confidence = f"{min(99, 60 + int(req_rate))}%"
+                    else:
+                        continue  # Not suspicious enough
+
+                    self._emit_event(src_ip, label, confidence, {}, 0)
+
+                    # Reset after emitting
+                    with self._lock:
+                        if src_ip in self._http_tracker:
+                            self._http_tracker[src_ip] = {
+                                'request_count':   0,
+                                'suspicious_paths': 0,
+                                'start_time':      time.time(),
+                                'last_analyzed':   time.time(),
+                            }
+
+            except Exception as e:
+                print(f"⚠️  HTTP monitor error: {e}")
+            time.sleep(1.0)
+
+    def record_http_request(self, src_ip, path):
+        """Called by Flask middleware for every incoming HTTP request."""
+        now = time.time()
+        path_lower = path.lower()
+        is_suspicious = any(p in path_lower for p in self._suspicious_patterns)
+
+        with self._lock:
+            h = self._http_tracker[src_ip]
+            if h['start_time'] is None:
+                h['start_time'] = now
+            h['request_count']   += 1
+            if is_suspicious:
+                h['suspicious_paths'] += 1
 
     # ── Simulation fallback ──────────────────────────────────────────────────
 

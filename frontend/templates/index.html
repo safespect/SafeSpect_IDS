@@ -515,11 +515,26 @@
     }
 
     // ── Event delegation for Details buttons in history table ─────────────
+    // document.getElementById('historyBody').addEventListener('click', (e) => {
+    //     const btn = e.target.closest('button.details-btn');
+    //     if (!btn) return;
+    //     e.stopPropagation();
+    //     openExplanationPanel(historyData[parseInt(btn.dataset.openIndex)]);
+    // });
+    // ── NEW: click anywhere on row OR the button ──
     document.getElementById('historyBody').addEventListener('click', (e) => {
+        // Check button first
         const btn = e.target.closest('button.details-btn');
-        if (!btn) return;
-        e.stopPropagation();
-        openExplanationPanel(historyData[parseInt(btn.dataset.openIndex)]);
+        if (btn) {
+            e.stopPropagation();
+            openExplanationPanel(historyData[parseInt(btn.dataset.openIndex)]);
+            return;
+        }
+        // Click anywhere on the row
+        const row = e.target.closest('tr[data-history-index]');
+        if (row) {
+            openExplanationPanel(historyData[parseInt(row.dataset.historyIndex)]);
+        }
     });
 
     // ── Event delegation for Details buttons in live monitor table ─────────
@@ -579,9 +594,16 @@
         const featuresEl = document.getElementById('panelFeatures');
         featuresEl.innerHTML = '';
         if (entry.explanation && entry.explanation.features) {
-            const combined = entry.explanation.features.map((f, i) => ({
-                name: f, val: entry.explanation.impact[i]
-            })).sort((a, b) => Math.abs(b.val) - Math.abs(a.val)).slice(0, 5);
+            // const combined = entry.explanation.features.map((f, i) => ({
+            //     name: f, val: entry.explanation.impact[i]
+            // })).sort((a, b) => Math.abs(b.val) - Math.abs(a.val)).slice(0, 5);
+
+            const combined = entry.explanation.features.map((f, i) => {
+                let val = entry.explanation.impact[i];
+                // Flatten nested arrays from SHAP (e.g. [[0.03]] → 0.03)
+                while (Array.isArray(val)) val = val[0];
+                return { name: f, val: parseFloat(val) || 0 };
+            }).sort((a, b) => Math.abs(b.val) - Math.abs(a.val)).slice(0, 5);
 
             const maxVal = Math.max(...combined.map(c => Math.abs(c.val))) || 1;
 
