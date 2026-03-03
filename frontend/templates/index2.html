@@ -7,8 +7,7 @@
         <p class="text-gray-400">Explainable AI monitoring for network intrusions by <span class="text-blue-500 font-bold">SafeSpect</span>.</p>
     </div>
 
-    <!-- Stats Bar -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-sm">
             <p class="text-gray-400 text-sm font-medium uppercase tracking-wider">Total Scanned</p>
             <h3 class="text-3xl font-bold text-white" id="totalScanned">0</h3>
@@ -21,68 +20,8 @@
             <p class="text-gray-400 text-sm font-medium uppercase tracking-wider">Model Accuracy</p>
             <h3 class="text-3xl font-bold text-green-400">99.8%</h3>
         </div>
-        <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl border-l-4 border-l-blue-500 shadow-sm">
-            <p class="text-gray-400 text-sm font-medium uppercase tracking-wider">Monitor Status</p>
-            <h3 class="text-xl font-bold mt-1" id="monitorStatusBadge">
-                <span class="text-gray-500">● IDLE</span>
-            </h3>
-        </div>
     </div>
 
-    <!-- Live Monitor Panel -->
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl mb-8 overflow-hidden">
-        <div class="flex items-center justify-between p-5 border-b border-gray-800">
-            <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                <i data-lucide="activity" class="w-5 h-5 text-blue-500"></i>
-                Live Network Monitor
-            </h2>
-            <div class="flex items-center gap-3">
-                <!-- Pulse indicator -->
-                <div id="livePulse" class="hidden items-center gap-2 text-xs text-green-400 font-mono">
-                    <span class="relative flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    LIVE
-                </div>
-                <button id="startMonitorBtn" onclick="startMonitor()"
-                    class="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-5 py-2 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-green-900/20">
-                    <i data-lucide="play" class="w-4 h-4"></i> Start Monitoring
-                </button>
-                <button id="stopMonitorBtn" onclick="stopMonitor()"
-                    class="hidden bg-red-700 hover:bg-red-600 text-white text-sm font-bold px-5 py-2 rounded-xl flex items-center gap-2 transition-all">
-                    <i data-lucide="square" class="w-4 h-4"></i> Stop
-                </button>
-            </div>
-        </div>
-
-        <!-- Live feed table -->
-        <div class="overflow-hidden">
-            <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-800/60 text-[10px] text-gray-500 uppercase font-bold tracking-widest">
-                    <tr>
-                        <th class="p-4">Time</th>
-                        <th class="p-4">Source</th>
-                        <th class="p-4">Detection</th>
-                        <th class="p-4">Confidence</th>
-                        <th class="p-4">Top Trigger Features</th>
-                    </tr>
-                </thead>
-                <tbody id="liveBody" class="text-sm text-gray-300 divide-y divide-gray-800/50">
-                    <tr id="liveEmptyRow">
-                        <td colspan="5" class="text-center py-12 text-gray-600">
-                            <div class="flex flex-col items-center gap-2">
-                                <i data-lucide="wifi-off" class="w-8 h-8 opacity-30"></i>
-                                <span class="text-xs">Click "Start Monitoring" to begin live traffic analysis</span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Manual Analysis + History -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-1 bg-gray-900 p-6 rounded-2xl border border-gray-800 shadow-xl h-fit">
             <h2 class="text-xl font-bold mb-6 flex items-center gap-2 text-white">
@@ -109,8 +48,8 @@
                     <label class="text-[10px] text-gray-500 uppercase font-black mb-1 block">Init Win Bytes Fwd</label>
                     <input type="number" id="Init_Win_bytes_forward" class="w-full bg-gray-800 border border-gray-700 p-2 rounded-lg text-white text-sm" value="255">
                 </div>
-                <button type="button" onclick="analyzeData()"
-                    class="col-span-2 mt-2 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20">
+                
+                <button type="button" onclick="analyzeData()" class="col-span-2 mt-2 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20">
                     <i data-lucide="zap" class="w-5 h-5"></i> Run SafeSpect AI
                 </button>
             </form>
@@ -136,6 +75,7 @@
                             <span class="text-2xl font-mono text-blue-400 block mt-1" id="confidenceScore">0%</span>
                         </div>
                     </div>
+                    
                     <div class="border-t border-gray-800 pt-6">
                         <h4 class="text-xs text-gray-400 uppercase mb-4 tracking-widest font-bold flex items-center gap-2">
                             <i data-lucide="info" class="w-4 h-4 text-blue-500"></i> Top Feature Impacts
@@ -172,116 +112,12 @@
     let myChart = null;
     let scans = 0;
     let threats = 0;
-    let eventSource = null;
 
-    // ── Attack type descriptions for SHAP explanations ─────────────────────
-    const ATTACK_DESCRIPTIONS = {
-        "BENIGN":      { color: "text-green-400", icon: "shield-check",  desc: "Normal traffic — no threat detected." },
-        "DDoS":        { color: "text-red-500",   icon: "zap",           desc: "Distributed Denial of Service — massive packet flood overwhelming the target." },
-        "PortScan":    { color: "text-orange-400",icon: "search",        desc: "Port Scan — attacker probing open ports to map the network." },
-        "BruteForce":  { color: "text-yellow-400",icon: "key",           desc: "Brute Force — repeated login attempts to crack credentials." },
-        "Bot":         { color: "text-purple-400", icon: "cpu",          desc: "Bot activity — automated traffic following command-and-control patterns." },
-        "WebAttack":   { color: "text-pink-400",  icon: "globe",         desc: "Web Attack — SQL injection, XSS, or similar HTTP-layer exploits." },
-        "Infiltration":{ color: "text-red-400",   icon: "log-in",        desc: "Infiltration — attacker has breached the network perimeter." },
-        "Heartbleed":  { color: "text-red-600",   icon: "heart-crack",   desc: "Heartbleed — OpenSSL memory leak exploit exposing sensitive data." },
-        "DOS":         { color: "text-orange-500",icon: "alert-triangle", desc: "Denial of Service — single-source flood attack." },
-    };
-
-    // ── Live Monitor ──────────────────────────────────────────────────────────
-    async function startMonitor() {
-        const res = await fetch('/monitor/start', { method: 'POST' });
-        const data = await res.json();
-        if (data.status === 'started') {
-            document.getElementById('startMonitorBtn').classList.add('hidden');
-            document.getElementById('stopMonitorBtn').classList.remove('hidden');
-            document.getElementById('livePulse').classList.remove('hidden');
-            document.getElementById('livePulse').classList.add('flex');
-            document.getElementById('monitorStatusBadge').innerHTML = '<span class="text-green-400">● MONITORING</span>';
-            subscribeToStream();
-        }
-    }
-
-    async function stopMonitor() {
-        await fetch('/monitor/stop', { method: 'POST' });
-        if (eventSource) { eventSource.close(); eventSource = null; }
-        document.getElementById('startMonitorBtn').classList.remove('hidden');
-        document.getElementById('stopMonitorBtn').classList.add('hidden');
-        document.getElementById('livePulse').classList.add('hidden');
-        document.getElementById('livePulse').classList.remove('flex');
-        document.getElementById('monitorStatusBadge').innerHTML = '<span class="text-gray-500">● IDLE</span>';
-    }
-
-    function subscribeToStream() {
-        if (eventSource) eventSource.close();
-        eventSource = new EventSource('/monitor/stream');
-
-        eventSource.onmessage = (e) => {
-            const event = JSON.parse(e.data);
-            if (event.type === 'connected' || event.type === 'stopped') return;
-            appendLiveRow(event);
-        };
-
-        eventSource.onerror = () => {
-            console.warn('SSE connection lost — retrying...');
-        };
-    }
-
-    function appendLiveRow(event) {
-        // Remove empty placeholder row
-        const empty = document.getElementById('liveEmptyRow');
-        if (empty) empty.remove();
-
-        const liveBody = document.getElementById('liveBody');
-        const meta = ATTACK_DESCRIPTIONS[event.label] || ATTACK_DESCRIPTIONS['BENIGN'];
-
-        // Build SHAP feature pills
-        const featurePills = (event.top_features || []).map(f => {
-            const dir = f.impact > 0 ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300';
-            const arrow = f.impact > 0 ? '▲' : '▼';
-            return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono ${dir}">
-                        ${arrow} ${f.name}
-                    </span>`;
-        }).join(' ');
-
-        const threatBg = event.is_threat ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-gray-800/30';
-
-        const row = document.createElement('tr');
-        row.className = `${threatBg} transition-colors animate-pulse-once`;
-        row.innerHTML = `
-            <td class="p-4 text-gray-500 font-mono text-xs">${event.time}</td>
-            <td class="p-4 font-mono text-xs text-gray-400">${event.src}</td>
-            <td class="p-4">
-                <div class="flex flex-col gap-1">
-                    <span class="font-bold ${meta.color} text-sm">${event.label}</span>
-                    <span class="text-gray-500 text-[11px]">${meta.desc}</span>
-                </div>
-            </td>
-            <td class="p-4 font-mono text-blue-400 text-sm">${event.confidence}</td>
-            <td class="p-4">
-                <div class="flex flex-wrap gap-1">${featurePills}</div>
-            </td>
-        `;
-
-        liveBody.insertAdjacentElement('afterbegin', row);
-
-        // Keep table at max 50 rows
-        const rows = liveBody.querySelectorAll('tr');
-        if (rows.length > 50) rows[rows.length - 1].remove();
-
-        // Update global counters
-        scans++;
-        document.getElementById('totalScanned').innerText = scans;
-        if (event.is_threat) {
-            threats++;
-            document.getElementById('threatsDetected').innerText = threats;
-        }
-    }
-
-    // ── Manual Analysis ────────────────────────────────────────────────────
     async function analyzeData() {
         document.getElementById('resultsPlaceholder').classList.add('hidden');
         document.getElementById('analysisContent').classList.remove('hidden');
 
+        // Map UI IDs to the exact feature names your model expects
         const inputData = {
             "Destination Port": parseInt(document.getElementById('Destination_Port').value),
             "Flow Duration": parseInt(document.getElementById('duration').value),
@@ -296,24 +132,26 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(inputData)
             });
+            
             const data = await response.json();
             if (data.error) throw new Error(data.error);
-
+            
             const label = document.getElementById('resultLabel');
             label.innerText = data.result;
-
+            
             scans++;
             document.getElementById('totalScanned').innerText = scans;
 
-            const meta = ATTACK_DESCRIPTIONS[data.result] || ATTACK_DESCRIPTIONS['BENIGN'];
-            let statusClass = meta.color;
+            let statusClass = 'text-green-500';
             if (data.result !== 'BENIGN') {
+                statusClass = 'text-red-500';
                 threats++;
                 document.getElementById('threatsDetected').innerText = threats;
             }
             label.className = `${statusClass} text-4xl font-black mt-1`;
             document.getElementById('confidenceScore').innerText = data.confidence;
 
+            // History Table
             const historyBody = document.getElementById('historyBody');
             const row = `
                 <tr class="hover:bg-gray-800/30 transition-colors">
@@ -324,10 +162,14 @@
             `;
             historyBody.insertAdjacentHTML('afterbegin', row);
 
-            if (myChart) myChart.destroy();
+            // Chart Rendering
+            if (myChart) { myChart.destroy(); }
             const ctx = document.getElementById('xaiChart').getContext('2d');
+            
+            // To prevent 78 bars, we only show the top 5 largest impacts
             const combined = data.explanation.features.map((f, i) => ({
-                name: f, val: data.explanation.impact[i]
+                name: f,
+                val: data.explanation.impact[i]
             })).sort((a, b) => Math.abs(b.val) - Math.abs(a.val)).slice(0, 5);
 
             myChart = new Chart(ctx, {
