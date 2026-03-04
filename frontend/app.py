@@ -8,8 +8,8 @@ app = Flask(__name__)
 app.secret_key = 'safespect_secret_key'
 
 ATTACK_LABELS = {
-    0: "BENIGN", 1: "Bot", 2: "BruteForce", 3: "DDoS",
-    4: "DOS", 5: "Heartbleed", 6: "Infiltration",
+    0: "BENIGN", 1: "Bot", 2: "BruteForce", 3: "DoS",
+    4: "DoS", 5: "Heartbleed", 6: "Infiltration",
     7: "PortScan", 8: "WebAttack"
 }
 
@@ -113,12 +113,6 @@ def analyze():
         df = pd.DataFrame([full_features])[ai_model.required_features]
         probs = ai_model.model.predict_proba(df)[0]
 
-        attack_labels = {
-            0: "BENIGN", 1: "Bot", 2: "BruteForce", 3: "DDoS",
-            4: "DOS", 5: "Heartbleed", 6: "Infiltration",
-            7: "PortScan", 8: "WebAttack"
-        }
-
         benign_prob = probs[0]
         attack_probs = probs[1:]
 
@@ -127,8 +121,7 @@ def analyze():
         else:
             final_idx = 0
 
-        result['result'] = attack_labels.get(final_idx, "BENIGN")
-        # result['confidence'] = f"{round(float(probs[final_idx]) * 100, 2)}%"
+        result['result'] = ATTACK_LABELS.get(final_idx, "BENIGN")
 
         return jsonify(result)
 

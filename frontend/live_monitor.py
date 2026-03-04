@@ -1,5 +1,5 @@
 """
-live_monitor.py — Windows-compatible, fixed DDoS vs PortScan detection
+live_monitor.py — Windows-compatible, fixed DoS vs PortScan detection
 """
 
 import threading
@@ -164,7 +164,7 @@ class LiveNetworkMonitor:
             "Fwd Packets/s":          pps,
         }
 
-        # DDoS = high SYN storm on few ports
+        # DoS  = high SYN storm on few ports
         # PortScan = many unique ports, low SYN relative to ports
         # BruteForce = high packet count to 1-2 ports (e.g. port 5000/22), low SYN, many packets
         is_flood     = s['syn_count'] >= 20 and (unique_ports < 20 or s['syn_count'] > unique_ports * 2)
@@ -183,7 +183,7 @@ class LiveNetworkMonitor:
             confidence = result['confidence']
 
             if is_flood:
-                label      = 'DDoS'
+                label      = 'DoS'  # Changed from 'DDoS' to 'DoS'
                 confidence = f"{min(99, 70 + min(29, int(pps / 1000)))}%"
             elif is_bruteforce:
                 label      = 'BruteForce'
