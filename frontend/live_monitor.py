@@ -116,25 +116,25 @@ class LiveNetworkMonitor:
                 unique_ports = len(s['dest_ports'])
                 since_last   = now - s['last_analyzed']
                 should_analyze = (
-                    (unique_ports >= 5 and since_last > 1.0) or
-                    (s['total_packets'] >= 10 and since_last > 2.0)
+                    (unique_ports >= 10 and since_last > 2.0) or
+                    (s['total_packets'] >= 30 and since_last > 5.0)
                 )
 
             if should_analyze:
                 self._analyze_source(src_ip)
 
         # WSL Hyper-V interface
-        WSL_IFACE = "\\Device\\NPF_{FC5F9F4D-121B-4A4E-A18A-C14C872C408F}"
+        WSL_IFACE = "\\Device\\NPF_{DAD706A7-A620-47FF-97DA-FFEED867A400}"
         print(f"📡 Sniffing on WSL interface: {WSL_IFACE}")
 
         while self.running:
-            sniff(filter="ip", iface=WSL_IFACE, prn=handle_packet, store=False, timeout=2, count=0)
+            sniff(filter="ip dst 172.20.10.2", iface=WSL_IFACE, prn=handle_packet, store=False, timeout=2, count=0)
 
     # ── Per-source analysis ──────────────────────────────────────────────────
 
     def _analyze_source(self, src_ip):
         # Skip Windows host IP — it's our own machine responding to traffic, not an attacker
-        if src_ip == '172.20.48.1':
+        if src_ip in ('172.20.48.1', '172.20.10.2', '172.20.10.1'):
             return
         with self._lock:
             if src_ip not in self._src_tracker:
@@ -240,7 +240,11 @@ class LiveNetworkMonitor:
                     else:
                         continue  # Not suspicious enough
 
-                    self._emit_event(src_ip, label, confidence, {}, 0)
+                    explanation = {
+                        'features': ['Destination Port', 'Fwd Packets/s', 'SYN Flag Count'],
+                        'impact':   [req_rate, data['request_count'] / 10, sus_ratio * 10]
+                    }
+                    self._emit_event(src_ip, label, confidence, explanation, 0)
 
                     # Reset after emitting
                     with self._lock:

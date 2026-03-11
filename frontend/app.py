@@ -23,7 +23,13 @@ monitor = LiveNetworkMonitor(ai_model)
 users = {
     "admin@safespect.ai": "password123"
 }
-
+@app.before_request
+def track_request():
+    src_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    # Strip port if present
+    src_ip = src_ip.split(':')[0]
+    monitor.record_http_request(src_ip, request.path)
+    
 @app.route('/')
 def index():
     if 'user_email' not in session:
@@ -131,4 +137,4 @@ def analyze():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True, threaded=True)
+    app.run(host='0.0.0.0', debug=True)
